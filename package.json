@@ -1,0 +1,19 @@
+{
+  "name": "3d-virtual-ai-environments-deep-learning",
+  "version": "1.0.0",
+  "description": "Deep Learning Pipeline for a simple 3D Virtual environment using Tensorflow, Keras and Three.js",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.160.1"
+  },
+  "devDependencies": {
+    "parcel": "^2.10.3",
+    "parcel-reporter-static-files-copy": "^1.5.3"
+  }
+}
