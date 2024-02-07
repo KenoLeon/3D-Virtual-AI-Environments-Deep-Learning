@@ -4,9 +4,10 @@ import {
     OrbitControls
 } from 'three/examples/jsm/controls/OrbitControls';
 
+
 let camera, scene, renderer;
 let topRenderer, camera2
-let cube, backWall, leftWall, rightWall, frontWall, sphere;
+let cube, backWall, leftWall, rightWall, frontWall;
 let moveForward = false,
     moveBackward = false,
     moveLeft = false,
@@ -16,12 +17,20 @@ let moveForward = false,
 let characterSpeed = 0.1;
 let rotationSpeed = 0.05;
 let previousCubePosition = new THREE.Vector3();
-let batchedData = [];
-let label = 1;
-let imageCounter = 0;
+let tfliteModel;
+let inferenceResult = '';
+let labelElement;
+let pixels;
+
+
+async function loadModel() {
+    tfliteModel = await tflite.loadTFLiteModel("http://localhost:1234/ObjectDetector.tflite");
+    console.log('Tensor Flow Model Loaded');
+}
+
 
 function init() {
-
+    loadModel();           
     // SCENE
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf2f2f2);
@@ -93,7 +102,7 @@ function init() {
     // Object to count
     const sphereGeometry = new THREE.SphereGeometry(0.4, 32, 32);
     const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
     sphere.castShadow = true;
     sphere.receiveShadow = true;
     sphere.position.set(0, 1, -3);  // Adjust the position as needed l, r
@@ -144,11 +153,11 @@ function init() {
 
     //Renderer Top
     topRenderer = new THREE.WebGLRenderer({
-        antialias: true,
-        preserveDrawingBuffer: true
+        antialias: true        
     });
     topRenderer.setClearColor(0x000000, 0); // set the background color to transparent
-    topRenderer.setSize(window.innerWidth / 4, window.innerHeight / 4); // set the size of the viewport
+    // topRenderer.setSize(window.innerWidth / 4, window.innerHeight / 4); // set the size of the viewport
+    topRenderer.setSize(384,210);
     topRenderer.domElement.style.position = 'absolute'; // set the position of the viewport
     topRenderer.domElement.style.top = '10px'; // set the top position of the viewport
     topRenderer.domElement.style.right = '10px'; // set the right position of the viewport
@@ -184,94 +193,25 @@ function init() {
     
     // BUTTONS 
     
-    const button1 = document.createElement('button');    
-    button1.className = 'btn btn-danger btn-sm';
-    button1.textContent = 'Capture POV';
+    const button1 = document.createElement('button');
+    button1.className = 'btn btn-dark btn-sm';
+    button1.textContent = 'INFER';
     sidebar.appendChild(button1);
-    
+    overlay.appendChild(sidebar);
 
     // Append the overlay to the container
     container.appendChild(overlay);
-    const lineBreak = document.createElement('br');
+
+    // INFERENCE LABEL: 
+    const lineBreak = document.createElement('br');    
+    labelElement = document.createElement('span');
+    const h5 = document.createElement('h5');
+    // labelElement.className = 'badge text-bg-primary';
+    labelElement.innerHTML = `${inferenceResult}`;
+    h5.appendChild(labelElement);
     sidebar.appendChild(lineBreak);
-    const button2 = document.createElement('button');
-    button2.style.marginTop = '6px';
-    button2.style.marginBottom = '6px';
-    button2.className = 'btn btn-primary btn-sm';
-    button2.textContent = 'Save Dataset';
-    sidebar.appendChild(button2);
-    overlay.appendChild(sidebar);
-
-    // COUNTER
-    const counterElement = document.createElement('p');
-    counterElement.innerHTML = 'Images Captured: <span id="imageCounter">0</span>';
-    sidebar.appendChild(counterElement);
-
-
-    // LABEL
-    const lineBreak2 = document.createElement('br');
-    const labelElement = document.createElement('span');
-    const h5 = document.createElement('h5')
-    h5.innerHTML = 'Label: '    
-    labelElement.className ='badge text-bg-info'    
-    labelElement.innerHTML = `${label}`;
-    h5.appendChild(labelElement) 
-    sidebar.appendChild(lineBreak2);
     sidebar.appendChild(h5);
-
-
-    // Add event listener to the button
-    button1.addEventListener("click", function() {
-        
-        // Capture image with the object (label 1)
-        topRenderer.render(scene, camera2);
-        const imageDataWithObject = topRenderer.domElement.toDataURL("image/png");
-        const randomImageNameWithObject = `${generateRandomString()}_with_object.png`;        
-        
-        // Reset the scene without the object for the next capture
-        resetScene(true); // Pass true to hide the object
-
-        // Capture image without the object (label 0)
-        topRenderer.render(scene, camera2);
-        const imageDataWithoutObject = topRenderer.domElement.toDataURL("image/png");
-        const randomImageNameWithoutObject = `${generateRandomString()}_without_object.png`;
-
-        // Reset the scene with the object for the next capture
-        resetScene(false); // Pass false to show the object again
-
-        // Add both captured data to the batched data
-        batchedData.push(
-            {
-                "image": randomImageNameWithObject,
-                "label": 1,
-                "imageData": imageDataWithObject
-            },
-            {
-                "image": randomImageNameWithoutObject,
-                "label": 0,
-                "imageData": imageDataWithoutObject
-            }
-        );
-        imageCounter += 2; // Increment the counter for two captures
-        updateImageCounter();    
-    });
-
-      // Event listener for the "Save Dataset" button
-    button2.addEventListener("click", function() {
-        if (batchedData.length === 0) {
-            alert('No data to save.');
-            return;
-        }
-        const datasetFilename = `dataset_${generateRandomString()}.json`;
-        createDatasetJSON(batchedData, datasetFilename);
-        batchedData.length = 0;
-        imageCounter = 0;
-        updateImageCounter()
-
-        // Alert the user about the successful save
-        alert(`Dataset JSON file saved: ${datasetFilename}`);
-    });
-
+    button1.addEventListener("click", captureAndInfer);
 
     // Orbit controls
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -283,51 +223,81 @@ function init() {
     controls.maxPolarAngle = Math.PI / 2;
 
     window.addEventListener('keydown', onKeyDown, false);
-    window.addEventListener('keyup', onKeyUp, false);
+    window.addEventListener('keyup', onKeyUp, false);    
 
 }
 
-function resetScene(hideObject) {
-    // Hide or show the object based on the argument
-    sphere.visible = !hideObject;
-}
 
+async function captureAndInfer() {
+    topRenderer.render(scene, camera2);
 
-// Function to update the image counter element
-function updateImageCounter() {
-    const counterElement = document.getElementById('imageCounter');
-    counterElement.textContent = imageCounter;
-}
+    // Wait for the rendering to complete
+    await new Promise((resolve) => requestAnimationFrame(resolve));
 
-// Function to generate a random string for image names
-function generateRandomString() {
-    const length = 8;
-    const characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-        result += characters.charAt(Math.floor(Math.random() * characters.length));
+    let imageData = topRenderer.domElement.toDataURL("image/png");
+    let canvas = document.createElement('canvas');
+    let context = canvas.getContext('2d');
+    canvas.width = topRenderer.domElement.width;
+    canvas.height = topRenderer.domElement.height;
+    let image = new Image();
+    image.src = imageData;
+
+    // Wait for the image to load before performing inference
+    await new Promise((resolve) => {
+        image.onload = resolve;
+    });
+
+    context.drawImage(image, 0, 0);
+    pixels = tf.browser.fromPixels(canvas);
+
+    // Perform inference asynchronously
+    try {
+        let isInferenceSuccessful = await performInference(pixels);
+        console.log('isInferenceSuccessful', isInferenceSuccessful);
+
+        if (isInferenceSuccessful) {
+            inferenceResult = 'OBJECT DETECTED';
+            console.log('OBJECT DETECTED');
+            labelElement.className = 'badge text-bg-success';
+        } else {
+            inferenceResult = 'NO OBJECT DETECTED';
+            console.log('NO OBJECT DETECTED');
+            labelElement.className = 'badge text-bg-danger';
+        }
+
+        labelElement.innerHTML = `${inferenceResult}`;
+    } catch (error) {
+        console.error('Error during inference:', error);
     }
-    return result;
-}
-
-// Function to create and save the dataset JSON file
-function createDatasetJSON(data, filename) {
-    const jsonContent = JSON.stringify(data, null, 2);
-
-    const blob = new Blob([jsonContent], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = window.URL.createObjectURL(blob);
-    link.download = filename;
-
-    // Append the link to the body and trigger a click to start the download
-    document.body.appendChild(link);
-    link.click();
-
-    // Remove the link element
-    document.body.removeChild(link);
 }
 
 
+async function performInference(pixels) {
+    try {
+        // Create Image
+        console.log('Pixel values for dynamic image:', pixels.dataSync());
+        let resizedTensor = tf.image.resizeBilinear(pixels, [150, 200]);
+        let preprocessedTensor = tf.expandDims(resizedTensor, 0);
+
+        // Run inference
+        let predictions = tfliteModel.predict(preprocessedTensor);
+        let outputData = predictions.dataSync();
+        console.log(outputData);
+
+        // Threshold for considering an object is detected
+        let threshold = 0.5;
+        let probability = outputData[0];
+        console.log('Probabilities:', probability);
+
+        // Clean up
+        tf.dispose([resizedTensor, preprocessedTensor, predictions]);
+
+        return probability < threshold;
+    } catch (error) {
+        console.error('Error during inference:', error);
+        return false;
+    }
+}
 
 function checkCollision() {
     // Create a bounding box for the cube
@@ -378,6 +348,8 @@ function animate() {
     if (moveRight && cube.position.x < 10 - characterSpeed) {
         cube.translateX(characterSpeed);
     }
+
+
 
     renderer.render(scene, camera);
     topRenderer.render(scene, camera2);
