@@ -594,7 +594,9 @@ let inferenceResult = "";
 let labelElement;
 let pixels;
 async function loadModel() {
-    tfliteModel = await tflite.loadTFLiteModel("http://localhost:1234/ObjectDetector.tflite");
+    // tfliteModel = await tflite.loadTFLiteModel("http://localhost:1234/ObjectDetector.tflite");
+    // tfliteModel = await tflite.loadTFLiteModel("https://github.com/KenoLeon/3D-Virtual-AI-Environments-Deep-Learning/blob/9d89d1a1a5f706782769c4525ecb54f404378090/static/ObjectDetector.tflite");
+    tfliteModel = await tflite.loadTFLiteModel("https://raw.githubusercontent.com/KenoLeon/3D-Virtual-AI-Environments-Deep-Learning/5d5fdd0f9d17d109d66a820250bf10116f740405/static/ObjectDetector.tflite");
     console.log("Tensor Flow Model Loaded");
 }
 function init() {

@@ -23,9 +23,10 @@ let labelElement;
 let pixels;
 
 
+
 async function loadModel() {
     tfliteModel = await tflite.loadTFLiteModel("http://localhost:1234/ObjectDetector.tflite");
-    console.log('Tensor Flow Model Loaded');
+     console.log('Tensor Flow Model Loaded');
 }
 
 

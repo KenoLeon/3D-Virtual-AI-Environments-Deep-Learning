@@ -24,7 +24,9 @@ let pixels;
 
 
 async function loadModel() {
-    tfliteModel = await tflite.loadTFLiteModel("http://localhost:1234/ObjectDetector.tflite");
+    // tfliteModel = await tflite.loadTFLiteModel("http://localhost:1234/ObjectDetector.tflite");    
+    tfliteModel = await tflite.loadTFLiteModel("https://raw.githubusercontent.com/KenoLeon/3D-Virtual-AI-Environments-Deep-Learning/5d5fdd0f9d17d109d66a820250bf10116f740405/static/ObjectDetector.tflite");
+
     console.log('Tensor Flow Model Loaded');
 }
 
