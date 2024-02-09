@@ -1,3 +1,6 @@
+// To DO make chain with model load...
+
+import 'bootstrap';
 import * as THREE from 'three';
 import {
     OrbitControls
